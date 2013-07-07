@@ -1,0 +1,16 @@
+# Install java as root
+sh /media/hosthome/jre-6u34-linux-x64-rpm.bin
+
+# As cass
+cd dsc-cassandra-1.2.6/bin/
+sudo ./cassandra
+
+create keyspace disagg
+with replication = {
+    'class':'SimpleStrategy',
+    'replication_factor':1}
+    AND durable_writes = false;
+
+use disagg;
+
+create table meter_samples (said int, datetime bigint, volts float, amps float, PRIMARY KEY (said, datetime));
