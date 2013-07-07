@@ -1,0 +1,4 @@
+*.swp
+target/stale/extract-native.dependencies
+target/classes/
+checkouts/
