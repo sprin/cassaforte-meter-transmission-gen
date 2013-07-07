@@ -13,4 +13,34 @@ with replication = {
 
 use disagg;
 
-create table meter_samples (said int, datetime bigint, volts float, amps float, PRIMARY KEY (said, datetime));
+CREATE TABLE meter_samples (
+    said INT
+    , datetime TIMESTAMP
+    , watts list<float>
+    , PRIMARY KEY (said, datetime));
+
+CREATE TABLE meter_samples_second (
+    said INT
+    , datetime TIMESTAMP
+    , joules INT
+    , PRIMARY KEY (said, datetime));
+
+CREATE TABLE meter_samples_minute (
+    said INT
+    , datetime TIMESTAMP
+    , joules COUNTER
+    , PRIMARY KEY (said, datetime));
+
+CREATE TABLE meter_samples_hour (
+    said INT
+    , datetime TIMESTAMP
+    , joules COUNTER
+    , PRIMARY KEY (said, datetime));
+
+CREATE TABLE meter_samples_day (
+    said INT
+    , datetime TIMESTAMP
+    , joules COUNTER
+    , PRIMARY KEY (said, datetime));
+
+I am still struggling with how to do effective aggregation within Cassandra. While the primary use case involves extracting all of the raw values within a given time period for a single (or set of) meters for analytical processing, there is also a use case to report the aggregated energy consumption. I am thinking that I should populate an aggregation table on INSERT, rather than run map-reduce jobs over the raw data, since this is an append-only time series model. Perhaps seconds, minutes, hours?
