@@ -4,6 +4,9 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.5.1"]
-                 [clojurewerkz/cassaforte "1.0.0-rc5"]
-                 [clj-time "0.5.1"]]
+                 [clj-time "0.5.1"]
+                 [cc.qbits/hayt "1.1.2"
+                  :exclusions [org.flatland/useful]]
+                 [com.datastax.cassandra/cassandra-driver-core "1.0.1"]]
+  :plugins [[lein-checkouts "1.1.0"]]
   :main cassaforte-test.core)
