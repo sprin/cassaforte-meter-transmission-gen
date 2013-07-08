@@ -44,3 +44,12 @@ CREATE TABLE meter_samples_day (
     , PRIMARY KEY (said, datetime));
 
 I am still struggling with how to do effective aggregation within Cassandra. While the primary use case involves extracting all of the raw values within a given time period for a single (or set of) meters for analytical processing, there is also a use case to report the aggregated energy consumption. I am thinking that I should populate an aggregation table on INSERT, rather than run map-reduce jobs over the raw data, since this is an append-only time series model. Perhaps seconds, minutes, hours?
+
+Get size of meter payload
+CAPTURE '~/meter_payload.txt';
+select * from meter_samples where datetime = '2013-01-01 00:00:00-0800' allow filtering;
+Edit out extraneous with vi, then
+ls -lh ~/meter_payload.txt
+46k
+
+
