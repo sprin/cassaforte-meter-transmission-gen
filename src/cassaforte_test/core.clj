@@ -16,10 +16,6 @@
 ;; Number of meters sending in transmissions.
 (def NUM_METERS 100)
 
-(defn increment-by
-  [num]
-  [+ num])
-
 (defn select-host-id
   "Select the host_id from the Cassandra instance."
   []
