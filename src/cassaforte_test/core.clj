@@ -5,16 +5,20 @@
             [clj-time.format :as tformat])
   (:use clojurewerkz.cassaforte.cql
         clojurewerkz.cassaforte.query)
-  (:import (java.security MessageDigest)))
+  (:import (java.security MessageDigest))
+  (:gen-class))
 
-(client/connect! ["127.0.0.1"])
 
 ;; The sample rate of meters in Hz, and the number of samples contained in
 ;; a meter transmission.
 (def SAMPLE_RATE 15000)
 
 ;; Number of meters sending in transmissions.
-(def NUM_METERS 2)
+(def NUM_METERS 100)
+
+(defn increment-by
+  [num]
+  [+ num])
 
 (defn select-host-id
   "Select the host_id from the Cassandra instance."
@@ -23,10 +27,11 @@
   (str (select :local
           (columns :host_id))))
 
-(def host-hash
+(defn host-hash
   "An integer obtained from hashing the host id. To be used to ensure that
   this script will generate different SAIDs on different hosts, but always
   generate the same SAID on the same host."
+  []
   (let [bytes (.getBytes (select-host-id))
         sha1 (.digest (MessageDigest/getInstance "SHA1") bytes)
         sha1_bigint (new java.math.BigInteger sha1)]
@@ -72,54 +77,48 @@
       (println (format "\nInserting transmission (%s, %s)"
                        said (hhmmss datetime)))
       ;; Insert raw, 15 kHz meter samples.
-      (client/prepared
-        (insert :meter_samples
-          {
-            :said said
-            :datetime (tcoerce/to-date datetime)
-            :watts samples
-          }))
+      (insert :meter_samples
+        {
+          :said said
+          :datetime (tcoerce/to-date datetime)
+          :watts samples
+        })
       ;; Aggregate on second intervals.
-      (client/prepared
-        (insert :meter_samples_second
-          {
-           :said said
-           :datetime (tcoerce/to-date datetime)
-           :joules joules
-          }))
+      (insert :meter_samples_second
+        {
+         :said said
+         :datetime (tcoerce/to-date datetime)
+         :joules joules
+        })
       ;; Increase counter on minute aggregation table.
-      (client/prepared
-        (update :meter_samples_minute
-          {:joules (increment-by (long joules))}
-          (where
-            :said said
-            :datetime (tcoerce/to-date (trunc-to-min datetime))
-          )))
+      (update :meter_samples_minute
+        {:joules (increment-by (long joules))}
+        (where
+          :said said
+          :datetime (tcoerce/to-date (trunc-to-min datetime))
+        ))
       ;; Increase counter on hour aggregation table.
-      (client/prepared
-        (update :meter_samples_hour
-          {:joules (increment-by (long joules))}
-          (where
-            :said said
-            :datetime (tcoerce/to-date (trunc-to-hour datetime))
-          )))
+      (update :meter_samples_hour
+        {:joules (increment-by (long joules))}
+        (where
+          :said said
+          :datetime (tcoerce/to-date (trunc-to-hour datetime))
+        ))
       ;; Increase counter on day aggregation table.
-      (client/prepared
-        (update :meter_samples_day
-          {:joules (increment-by (long joules))}
-          (where
-            :said said
-            :datetime (tcoerce/to-date (trunc-to-day datetime))
-          )))
+      (update :meter_samples_day
+        {:joules (increment-by (long joules))}
+        (where
+          :said said
+          :datetime (tcoerce/to-date (trunc-to-day datetime))
+        ))
       (println (format "\nDone inserting transmission (%s, %s)"
                        said (hhmmss datetime))))))
 
 (defn generate-samples
   "Generate samples for the given time and call the insert function.
   Returns a seq of futures to be deref'd later."
-  [datetime]
-    (let [samples (take SAMPLE_RATE watts)
-          start-said host-hash]
+  [start-said datetime]
+    (let [samples (take SAMPLE_RATE watts)]
         (map
           #(do-samples-inserts (int %) datetime samples)
           (range start-said (+ NUM_METERS start-said)))))
@@ -127,12 +126,14 @@
 (defn -main
   "Connect to Cassandra and begin inserting meter transmissions every 1 second."
   [& args]
-  (println host-hash)
-  (use-keyspace "disagg")
-  (while true
-    (let
-      [futures (generate-samples (tcore/now))]
-      ;; Sleep for 1s, then deref futures.
-      (Thread/sleep 1000)
-      (doall (map deref futures)))))
+  (client/connect! ["127.0.0.1"] :force-prepared-queries true)
+  (let [start-said (host-hash)]
+    (println start-said)
+    (use-keyspace "disagg")
+    (while true
+      (let
+        [futures (generate-samples start-said (tcore/now))]
+        ;; Sleep for 1s, then deref futures.
+        (Thread/sleep 1000)
+        (doall (map deref futures))))))
 
