@@ -69,56 +69,60 @@
   [said datetime samples]
   (future
     (let [joules (joules-over-second samples)]
-        (println (format "\nInserting transmission (%s, %s)"
-                         said (hhmmss datetime)))
-        (client/prepared
-          (insert :meter_samples
-            {
-              :said said
-              :datetime (tcoerce/to-date datetime)
-              :watts samples
-            }))
-        ;; Aggregate on second intervals
-        (client/prepared
-          (insert :meter_samples_second
-            {
-             :said said
-             :datetime (tcoerce/to-date datetime)
-             :joules joules
-            }))
-        ;; Increase counter on minute aggregation table
-        (client/prepared
-          (update :meter_samples_minute
-            {:joules (increment-by (long joules))}
-            (where
-              :said said
-              :datetime (tcoerce/to-date (trunc-to-min datetime))
-            )))
-        ;; Increase counter on hour aggregation table
-        (client/prepared
-          (update :meter_samples_hour
-            {:joules (increment-by (long joules))}
-            (where
-              :said said
-              :datetime (tcoerce/to-date (trunc-to-hour datetime))
-            )))
-        ;; Increase counter on day aggregation table
-        (client/prepared
-          (update :meter_samples_day
-            {:joules (increment-by (long joules))}
-            (where
-              :said said
-              :datetime (tcoerce/to-date (trunc-to-day datetime))
-            ))))))
+      (println (format "\nInserting transmission (%s, %s)"
+                       said (hhmmss datetime)))
+      ;; Insert raw, 15 kHz meter samples.
+      (client/prepared
+        (insert :meter_samples
+          {
+            :said said
+            :datetime (tcoerce/to-date datetime)
+            :watts samples
+          }))
+      ;; Aggregate on second intervals.
+      (client/prepared
+        (insert :meter_samples_second
+          {
+           :said said
+           :datetime (tcoerce/to-date datetime)
+           :joules joules
+          }))
+      ;; Increase counter on minute aggregation table.
+      (client/prepared
+        (update :meter_samples_minute
+          {:joules (increment-by (long joules))}
+          (where
+            :said said
+            :datetime (tcoerce/to-date (trunc-to-min datetime))
+          )))
+      ;; Increase counter on hour aggregation table.
+      (client/prepared
+        (update :meter_samples_hour
+          {:joules (increment-by (long joules))}
+          (where
+            :said said
+            :datetime (tcoerce/to-date (trunc-to-hour datetime))
+          )))
+      ;; Increase counter on day aggregation table.
+      (client/prepared
+        (update :meter_samples_day
+          {:joules (increment-by (long joules))}
+          (where
+            :said said
+            :datetime (tcoerce/to-date (trunc-to-day datetime))
+          )))
+      (println (format "\nDone inserting transmission (%s, %s)"
+                       said (hhmmss datetime))))))
 
 (defn generate-samples
-  "Generate samples for the given time and call the insert function."
+  "Generate samples for the given time and call the insert function.
+  Returns a seq of futures to be deref'd later."
   [datetime]
     (let [samples (take SAMPLE_RATE watts)
           start-said host-hash]
-      (println "=============================================================")
-      (doseq [said (range start-said (+ NUM_METERS start-said))]
-        (do-samples-inserts (int said) datetime samples))))
+        (map
+          #(do-samples-inserts (int %) datetime samples)
+          (range start-said (+ NUM_METERS start-said)))))
 
 (defn -main
   "Connect to Cassandra and begin inserting meter transmissions every 1 second."
@@ -126,7 +130,9 @@
   (println host-hash)
   (use-keyspace "disagg")
   (while true
-    (do
-      (generate-samples (tcore/now))
-      (Thread/sleep 1000))))
+    (let
+      [futures (generate-samples (tcore/now))]
+      ;; Sleep for 1s, then deref futures.
+      (Thread/sleep 1000)
+      (doall (map deref futures)))))
 
