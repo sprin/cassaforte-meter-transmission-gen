@@ -171,7 +171,7 @@
       (println start-said)
       (use-keyspace "disagg")
       (while true
-          (generate-samples (read-string num_meters) start-said (tcore/now))
+          (generate-samples (new Integer num_meters) start-said (tcore/now))
           ;; Sleep for 1s before re-entering loop.
           (Thread/sleep 1000)))))
 
