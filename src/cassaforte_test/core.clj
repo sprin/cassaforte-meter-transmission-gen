@@ -13,8 +13,9 @@
 ;; a meter transmission.
 (def SAMPLE_RATE 15000)
 
-;; Number of meters sending in transmissions.
-(def NUM_METERS 20)
+;; Default number of meters sending in transmissions.
+;; Can be set as a command-line arg.
+(def NUM_METERS_DEFAULT 2)
 
 (defn select-host-id
   "Select the host_id from the Cassandra instance."
@@ -153,21 +154,24 @@
 
 (defn generate-samples
   "Generate samples for the given time and call the insert function."
-  [start-said datetime]
+  [num_meters start-said datetime]
     (let [samples (take SAMPLE_RATE watts)]
         (doall (map
           #(do-samples-inserts (int %) datetime samples)
-          (range start-said (+ NUM_METERS start-said))))))
+          (range start-said (+ num_meters start-said))))))
 
 (defn -main
   "Connect to Cassandra and begin inserting meter transmissions every 1 second."
-  [& args]
-  (client/connect! ["127.0.0.1"] :force-prepared-queries true)
-  (let [start-said (host-hash)]
-    (println start-said)
-    (use-keyspace "disagg")
-    (while true
-        (generate-samples start-said (tcore/now))
-        ;; Sleep for 1s before re-entering loop.
-        (Thread/sleep 1000))))
+  ([]
+    (-main NUM_METERS_DEFAULT))
+
+  ([num_meters]
+    (client/connect! ["127.0.0.1"] :force-prepared-queries true)
+    (let [start-said (host-hash)]
+      (println start-said)
+      (use-keyspace "disagg")
+      (while true
+          (generate-samples (read-string num_meters) start-said (tcore/now))
+          ;; Sleep for 1s before re-entering loop.
+          (Thread/sleep 1000)))))
 
